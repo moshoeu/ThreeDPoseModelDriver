@@ -37,6 +37,11 @@ namespace Framework
             /// 骨骼节点
             /// </summary>
             public Transform m_BoneNode;
+
+            /// <summary>
+            /// 初始旋转
+            /// </summary>
+            public Quaternion m_InitInverseRotate;
         }
 
         /// <summary>
@@ -140,6 +145,9 @@ namespace Framework
             CreateChildJoint(hips);
             m_RootJoint = hips;
 
+            (Vector3 fwd, Vector3 up) fwdResult = GetForward(true);
+            InitJointInverseRotate(hips);
+
             // 尝试获取需要的骨骼节点
             Transform TryGetNeedBones(HumanBodyBones boneType)
             {
@@ -205,6 +213,78 @@ namespace Framework
                 return jointNode;
             }
 
+            // 初始化节点逆旋转
+            void InitJointInverseRotate(TreeNode<Joint> jointNode)
+            {
+                Joint pJoint = jointNode.m_Data;
+                Transform parent = pJoint.m_BoneNode;
+                var gpNode = jointNode.Parent;
+
+                Vector3 oldFwd, oldUp;
+
+                if (jointNode.m_Childs.Count == 0)
+                {
+                    // 特殊处理 没有子节点时 和父节点旋转保持一致
+                    if (gpNode == null)
+                    {
+                        oldUp = hips.m_Data.m_BoneNode.up;
+                        oldFwd = hips.m_Data.m_BoneNode.forward;
+                    }
+                    else
+                    {
+                        var gpJoint = gpNode.m_Data;
+
+                        oldUp = gpJoint.m_BoneNode.up;
+                        oldFwd = gpJoint.m_BoneNode.forward;
+                    }
+                }
+                else
+                {
+                    Joint c0Joint = jointNode.m_Childs[0].m_Data;
+                    Vector3 oldC0Pos = c0Joint.m_BoneNode.position;
+                    // 先参考第一个子节点的位置进行旋转
+                    Vector3 oldP2c0 = -parent.position + oldC0Pos;
+
+                    if (jointNode.m_Childs.Count >= 2)
+                    {
+                        Joint c1Joint = jointNode.m_Childs[1].m_Data;
+
+                        Vector3 oldC1Pos = c1Joint.m_BoneNode.position;
+                        Vector3 oldP2c1 = -parent.position + oldC1Pos;
+
+                        oldFwd = Vector3.Cross(oldP2c0, oldP2c1).normalized;
+                        oldUp = oldP2c0.normalized;
+
+                    }
+                    else
+                    {
+                        if (gpNode == null)
+                        {
+                            oldUp = hips.m_Data.m_BoneNode.up;
+                        }
+                        else
+                        {
+                            var gpJoint = gpNode.m_Data;
+                            oldUp = (parent.position - gpJoint.m_BoneNode.position).normalized;
+                        }
+
+                        oldFwd = oldP2c0.normalized;
+                    }
+                }
+
+
+
+                var oldRotate = Quaternion.LookRotation(oldFwd, oldUp);
+                var oldRotateInverse = Quaternion.Inverse(oldRotate);
+
+                pJoint.m_InitInverseRotate = oldRotateInverse * parent.rotation;
+
+                foreach (TreeNode<Joint> child in jointNode.m_Childs)
+                {
+                    InitJointInverseRotate(child);
+                }
+            }
+
         }
 
         /// <summary>
@@ -230,13 +310,14 @@ namespace Framework
 
             // 根节点位置变化
             m_RootJoint.m_Data.m_BoneNode.position = m_RootJoint.m_Data.m_Pos;
+            (Vector3 fwd, Vector3 up) fwdResult = GetForward(false);
 
             UpdateRotate(m_RootJoint);
 
             // 更新旋转
             void UpdateRotate(TreeNode<Joint> jointNode)
             {
-                CalculateJointRotate(jointNode);
+                CalculateJointRotateEx(jointNode);
 
                 foreach (TreeNode<Joint> child in jointNode.m_Childs)
                 {
@@ -245,46 +326,106 @@ namespace Framework
             }
 
             // 计算关节旋转
-            void CalculateJointRotate(TreeNode<Joint> jointNode)
+            void CalculateJointRotateEx(TreeNode<Joint> jointNode)
             {
+                Joint pJoint = jointNode.m_Data;
+                Transform parent = pJoint.m_BoneNode;
+                Vector3 newFwd, newUp;
+
+                var gpNode = jointNode.Parent;
+
                 if (jointNode.m_Childs.Count == 0)
                 {
-                    // 叶节点 暂时无法估计旋转
-                    return;
+                    // 特殊处理 没有子节点时 和父节点旋转保持一致
+                    if (gpNode == null)
+                    {
+                        newUp = fwdResult.up;
+                        newFwd = fwdResult.fwd;
+                    }
+                    else
+                    {
+                        var gpJoint = gpNode.m_Data;
+
+                        newUp = gpJoint.m_BoneNode.up;
+                        newFwd = gpJoint.m_BoneNode.forward;
+                    }
                 }
-
-                Joint pJoint = jointNode.m_Data;
-                Joint c0Joint = jointNode.m_Childs[0].m_Data;
-                Transform parent = pJoint.m_BoneNode;
-                Transform child0 = c0Joint.m_BoneNode;
-
-                // 先参考第一个子节点的位置进行旋转
-                Vector3 oldP2c0 = -parent.position + child0.position;
-                Vector3 newP2c0 = -parent.position + c0Joint.m_Pos;
-                Quaternion rotate = Quaternion.FromToRotation(oldP2c0, newP2c0);
-                Quaternion initRotate = parent.rotation;
-                parent.rotation = rotate * initRotate;
-
-                if (jointNode.m_Childs.Count > 1)
+                else 
                 {
-                    // 如果有多个子节点，再参考第二个子节点的位置进行旋转
-                    // NOTE: 以p2c0为旋转轴，将第二个子节点旋转到目标位置
-                    Joint c1Joint = jointNode.m_Childs[1].m_Data;
-                    Transform child1 = c1Joint.m_BoneNode;
+                    Joint c0Joint = jointNode.m_Childs[0].m_Data;
+                    Vector3 newC0Pos = c0Joint.m_Pos;
 
-                    Vector3 oldP2c1 = -parent.position + child1.position;
-                    Vector3 newDir2 = -parent.position + c1Joint.m_Pos;
+                    // 先参考第一个子节点的位置进行旋转
+                    Vector3 newP2c0 = -pJoint.m_Pos + newC0Pos;
 
-                    // 将p2c1投影到p2c0上，求垂直于旋转轴的旋转圆的圆心
-                    Vector3 project = Vector3.Project(oldP2c1, newP2c0.normalized);
-                    Vector3 roundCenter = parent.position + project;
+                    if (jointNode.m_Childs.Count == 1)
+                    {
+                        if (gpNode == null)
+                        {
+                            newUp = fwdResult.up;
+                        }
+                        else
+                        {
+                            var gpJoint = gpNode.m_Data;
+                            newUp = (pJoint.m_Pos - gpJoint.m_Pos).normalized;
+                        }
 
-                    // 再把parent以p2c0为旋转轴 计算旋转角度 进行旋转
-                    float angle = Vector3.SignedAngle(child1.position - roundCenter, 
-                        c1Joint.m_Pos - roundCenter, newP2c0);
-                    parent.RotateAround(parent.position, newP2c0, angle);
+                        newFwd = newP2c0.normalized;
+                    }
+                    else
+                    {
+                        Joint c1Joint = jointNode.m_Childs[1].m_Data;
+                        Vector3 newC1Pos = c1Joint.m_Pos;
+                        Vector3 newP2c1 = -pJoint.m_Pos + newC1Pos;
+
+                        // TODO: 若父节点是子节点取中点算出来的 这里叉乘会得零向量出错 要对节点做处理
+                        newFwd = Vector3.Cross(newP2c0, newP2c1).normalized;
+                        newUp = newP2c0.normalized;
+                    }
                 }
+
+                var newRotate = Quaternion.LookRotation(newFwd, newUp);
+
+                Quaternion initRotate = pJoint.m_InitInverseRotate;
+                parent.rotation = newRotate * initRotate;
             }
+        }
+
+        /// <summary>
+        /// 获取面朝方向
+        /// </summary>
+        /// <param name="keyPointCollection"></param>
+        /// <returns></returns>
+        public (Vector3 fwd, Vector3 up) GetForward(bool isTransformPos)
+        {
+            var rHips = m_JointDict[HumanBodyBones.RightUpperLeg];
+            var lHips = m_JointDict[HumanBodyBones.LeftUpperLeg];
+
+            var rShldr = m_JointDict[HumanBodyBones.RightUpperArm];
+            var lShldr = m_JointDict[HumanBodyBones.LeftUpperArm];
+
+            Vector3 mShldrPos, rVec, lVec;
+
+            if (isTransformPos)
+            {
+                mShldrPos = (rShldr.m_BoneNode.position + lShldr.m_BoneNode.position) / 2f;
+
+                rVec = rHips.m_BoneNode.position - mShldrPos;
+                lVec = lHips.m_BoneNode.position - mShldrPos;
+            }
+            else
+            {
+                mShldrPos = (rShldr.m_Pos + lShldr.m_Pos) / 2f;
+
+                rVec = rHips.m_Pos - mShldrPos;
+                lVec = lHips.m_Pos - mShldrPos;
+            }
+
+
+            var forward = Vector3.Cross(lVec, rVec).normalized;
+            var up = -((rVec + lVec) / 2f).normalized;
+
+            return (forward, up);
         }
     }
 }

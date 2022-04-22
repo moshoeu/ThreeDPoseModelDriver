@@ -35,8 +35,7 @@ namespace Framework
         /// </summary>
         public HumanBodyBones[] m_Bones;
 
-        public List<Dictionary<HumanBodyBones, SkeletonJointData.JointInput>> frameInput
-            = new List<Dictionary<HumanBodyBones, SkeletonJointData.JointInput>>();
+        public Dictionary<HumanBodyBones, SkeletonJointData.JointInput> m_Frame;
 
         /// <summary>
         /// 是否开启调试
@@ -57,81 +56,8 @@ namespace Framework
 
             m_jointCtrl = new SkeletonJointData();
             m_jointCtrl.InitJoints(m_animator, m_Bones);
-
-            //var str = System.IO.File.ReadAllText($"{Application.dataPath}/samplePosTest.txt");
-            //var frames = str.Split(';');
-
-            //System.Collections.Generic.Dictionary<int, HumanBodyBones> dict =
-            //    new System.Collections.Generic.Dictionary<int, HumanBodyBones>()
-            //    {
-            //        { 5, HumanBodyBones.LeftUpperArm },
-            //        { 6, HumanBodyBones.RightUpperArm },
-            //        { 7, HumanBodyBones.LeftLowerArm },
-            //        { 8, HumanBodyBones.RightLowerArm },
-            //        { 22, HumanBodyBones.LeftHand },
-            //        { 23, HumanBodyBones.RightHand },
-            //        { 11, HumanBodyBones.LeftUpperLeg },
-            //        { 12, HumanBodyBones.RightUpperLeg },
-            //        { 13, HumanBodyBones.LeftLowerLeg },
-            //        { 14, HumanBodyBones.RightLowerLeg },
-            //        { 15, HumanBodyBones.LeftFoot },
-            //        { 16, HumanBodyBones.RightFoot },
-            //    };
-
-            //foreach (var frame in frames)
-            //{
-            //    var boneDatas = frame.Split('+');
-
-            //    Dictionary<HumanBodyBones, SkeletonJointController.JointInput> input =
-            //        new Dictionary<HumanBodyBones, SkeletonJointController.JointInput>();
-
-            //    foreach (var data in boneDatas)
-            //    {
-            //        var boneData = data.Split(',');
-
-            //        int boneType = int.Parse(boneData[0]);
-            //        float x = float.Parse(boneData[1]);
-            //        float y = float.Parse(boneData[2]);
-            //        float z = float.Parse(boneData[3]);
-            //        Vector3 pos = new Vector3(x, y, z);
-
-            //        if (dict.ContainsKey(boneType))
-            //        {
-            //            HumanBodyBones bone = dict[boneType];
-            //            input.Add(bone, new SkeletonJointController.JointInput()
-            //            {
-            //                m_BoneType = bone,
-            //                m_Pos = pos
-            //            });
-            //        }
-            //    }
-
-            //    input.Add(HumanBodyBones.Hips, new SkeletonJointController.JointInput()
-            //    {
-            //        m_BoneType = HumanBodyBones.Hips,
-            //        m_Pos = (input[HumanBodyBones.LeftUpperLeg].m_Pos + input[HumanBodyBones.RightUpperLeg].m_Pos) / 2f
-            //    });
-            //    input.Add(HumanBodyBones.Neck, new SkeletonJointController.JointInput()
-            //    {
-            //        m_BoneType = HumanBodyBones.Neck,
-            //        m_Pos = (input[HumanBodyBones.LeftUpperArm].m_Pos + input[HumanBodyBones.RightUpperArm].m_Pos) / 2f
-            //    });
-            //    input.Add(HumanBodyBones.Spine, new SkeletonJointController.JointInput()
-            //    {
-            //        m_BoneType = HumanBodyBones.Spine,
-            //        m_Pos = (input[HumanBodyBones.LeftUpperArm].m_Pos + input[HumanBodyBones.RightUpperArm].m_Pos + input[HumanBodyBones.Hips].m_Pos) / 3f
-            //    });
-
-            //    frameInput.Add(input);
-
-
-
-
-            //}
         }
 
-        int crtIdx = 0;
-        float timer = 0;
         void Update()
         {
             if (m_isInvaildAvatar)
@@ -139,22 +65,10 @@ namespace Framework
                 return;
             }
 
-            //timer += Time.deltaTime;
-            //if (timer < 1)
-            //{
-            //    return;
-            //}
-            //timer = 0;
+            if (m_Frame == null) return;
 
-            if (frameInput.Count == 0) return;
 
-            if (crtIdx >= frameInput.Count)
-            {
-                crtIdx = 0;
-            }
-
-            var frame = frameInput[crtIdx++];
-            m_jointCtrl.UpdateJoints(new List<SkeletonJointData.JointInput>(frame.Values).ToArray());
+            m_jointCtrl.UpdateJoints(new List<SkeletonJointData.JointInput>(m_Frame.Values).ToArray());
         
             if (m_isDebug)
             {
