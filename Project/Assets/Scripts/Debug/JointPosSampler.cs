@@ -57,7 +57,7 @@ public class JointPosSampler : MonoBehaviour
             dict.Add(bone, input);
         }
 
-        m_driver.m_Frame = dict;
+        m_driver.Frame = dict;
     }
 
 }

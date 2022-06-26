@@ -18,30 +18,59 @@ namespace Framework
 {
     public class SkeletonJointDriver : MonoBehaviour
     {
-        private Animator m_animator;
+        // 驱动模式
+        public enum DriveMode
+        {
+            /// <summary>
+            /// 不驱动
+            /// </summary>
+            DontDrive,
 
-        /// <summary>
-        /// 关节数据
-        /// </summary>
-        private SkeletonJointData m_jointCtrl;
+            /// <summary>
+            /// 立即更新
+            /// </summary>
+            Immediately,
+
+            /// <summary>
+            /// 角速度
+            /// </summary>
+            AngularVelocity
+        }
+
+        private Animator m_animator;
 
         /// <summary>
         /// 是否非法人形
         /// </summary>
         private bool m_isInvaildAvatar;
 
+        public DriveMode m_DriveMode;
+
+        [SerializeField]
+        private float m_angularVelocity;
+
         /// <summary>
         /// 需要驱动的骨骼
         /// </summary>
         public HumanBodyBones[] m_Bones;
-
-        public Dictionary<HumanBodyBones, SkeletonJointData.JointInput> m_Frame;
 
         /// <summary>
         /// 是否开启调试
         /// </summary>
         [SerializeField]
         private bool m_isDebug;
+
+        /// <summary>
+        /// 关节数据
+        /// </summary>
+        public SkeletonJointData m_JointsData;
+
+
+        public Dictionary<HumanBodyBones, SkeletonJointData.JointInput> Frame
+        {
+            private get;
+            set;
+        }
 
         void Start()
         {
@@ -54,8 +83,8 @@ namespace Framework
                 return;
             }
 
-            m_jointCtrl = new SkeletonJointData();
-            m_jointCtrl.InitJoints(m_animator, m_Bones);
+            m_JointsData = new SkeletonJointData();
+            m_JointsData.InitJoints(m_animator, m_Bones);
         }
 
         void Update()
@@ -65,11 +94,12 @@ namespace Framework
                 return;
             }
 
-            if (m_Frame == null) return;
+            if (Frame == null) return;
+
+            m_JointsData.CalcJoints(new List<SkeletonJointData.JointInput>(Frame.Values).ToArray());
+            TryDriveJoints();
 
 
-            m_jointCtrl.UpdateJoints(new List<SkeletonJointData.JointInput>(m_Frame.Values).ToArray());
-        
             if (m_isDebug)
             {
                 DebugJoints();
@@ -78,7 +108,7 @@ namespace Framework
 
         private void DebugJoints()
         {
-            DrawJoint(m_jointCtrl.m_RootJoint);
+            DrawJoint(m_JointsData.RootJoint);
             
             void DrawJoint(TreeNode<SkeletonJointData.Joint> jointNode)
             {
@@ -121,6 +151,72 @@ namespace Framework
                 }
                 return result;
 
+            }
+        }
+
+        /// <summary>
+        /// 立即驱动骨骼
+        /// </summary>
+        private void DriveJointsImmediately()
+        {
+            var rootJoint = m_JointsData.RootJoint;
+            DriveJoint(rootJoint);
+
+            // 更新旋转
+            void DriveJoint(TreeNode<SkeletonJointData.Joint> jointNode)
+            {
+                var joint = jointNode.m_Data;
+                joint.m_BoneNode.rotation = joint.m_Rotation;
+
+                foreach (TreeNode<SkeletonJointData.Joint> child in jointNode.m_Childs)
+                {
+                    DriveJoint(child);
+                }
+            }
+        }
+
+        /// <summary>
+        /// 驱动骨骼
+        /// </summary>
+        private void DriveJointsSmooth()
+        {
+            var rootJoint = m_JointsData.RootJoint;
+            DriveJoint(rootJoint);
+
+            // 更新旋转
+            void DriveJoint(TreeNode<SkeletonJointData.Joint> jointNode)
+            {
+                var joint = jointNode.m_Data;
+                //joint.m_BoneNode.rotation = joint.m_Rotation;
+
+                var deltaRotation = Quaternion.RotateTowards(joint.m_BoneNode.rotation, joint.m_Rotation, m_angularVelocity * Time.deltaTime);
+                joint.m_BoneNode.rotation = deltaRotation;
+
+                foreach (TreeNode<SkeletonJointData.Joint> child in jointNode.m_Childs)
+                {
+                    DriveJoint(child);
+                }
+            }
+        }
+
+        /// <summary>
+        /// 试图驱动骨骼
+        /// </summary>
+        private void TryDriveJoints()
+        {
+            switch (m_DriveMode)
+            {
+                case DriveMode.Immediately:
+                    {
+                        DriveJointsImmediately();
+                        break;
+                    }
+                case DriveMode.AngularVelocity:
+                    {
+                        DriveJointsSmooth();
+                        break;
+                    }
+                default:break;
             }
         }
     }

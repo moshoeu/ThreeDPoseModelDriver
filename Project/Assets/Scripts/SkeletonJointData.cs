@@ -29,6 +29,11 @@ namespace Framework
             public Vector3 m_Pos;
 
             /// <summary>
+            /// 关节旋转
+            /// </summary>
+            public Quaternion m_Rotation;
+
+            /// <summary>
             /// 骨骼类型
             /// </summary>
             public HumanBodyBones m_BoneType;
@@ -41,7 +46,12 @@ namespace Framework
             /// <summary>
             /// 初始旋转
             /// </summary>
-            public Quaternion m_InitInverseRotate;
+            public Quaternion m_InitRotation;
+
+            /// <summary>
+            /// 初始逆旋转
+            /// </summary>
+            public Quaternion m_InitInverseRotation;
         }
 
         /// <summary>
@@ -63,7 +73,8 @@ namespace Framework
         /// <summary>
         /// 根关节
         /// </summary>
-        public TreeNode<Joint> m_RootJoint;
+        public TreeNode<Joint> RootJoint
+        { get; private set; }
 
         /// <summary>
         /// 关节字典
@@ -143,7 +154,7 @@ namespace Framework
 
             TreeNode<Joint> hips = CreateJoint(HumanBodyBones.Hips);
             CreateChildJoint(hips);
-            m_RootJoint = hips;
+            RootJoint = hips;
 
             (Vector3 fwd, Vector3 up) fwdResult = GetForward(true);
             InitJointInverseRotate(hips);
@@ -277,7 +288,8 @@ namespace Framework
                 var oldRotate = Quaternion.LookRotation(oldFwd, oldUp);
                 var oldRotateInverse = Quaternion.Inverse(oldRotate);
 
-                pJoint.m_InitInverseRotate = oldRotateInverse * parent.rotation;
+                pJoint.m_InitRotation = parent.rotation;
+                pJoint.m_InitInverseRotation = oldRotateInverse * parent.rotation;
 
                 foreach (TreeNode<Joint> child in jointNode.m_Childs)
                 {
@@ -291,7 +303,7 @@ namespace Framework
         /// 更新所有关节
         /// </summary>
         /// <param name="inputs"></param>
-        public void UpdateJoints(JointInput[] inputs)
+        public void CalcJoints(JointInput[] inputs)
         {
             // 更新关节位置数据
             for (int i = 0; i < inputs.Length; i++)
@@ -309,10 +321,10 @@ namespace Framework
             }
 
             // 根节点位置变化
-            m_RootJoint.m_Data.m_BoneNode.position = m_RootJoint.m_Data.m_Pos;
+            //m_RootJoint.m_Data.m_BoneNode.position = m_RootJoint.m_Data.m_Pos;
             (Vector3 fwd, Vector3 up) fwdResult = GetForward(false);
 
-            UpdateRotate(m_RootJoint);
+            UpdateRotate(RootJoint);
 
             // 更新旋转
             void UpdateRotate(TreeNode<Joint> jointNode)
@@ -386,8 +398,9 @@ namespace Framework
 
                 var newRotate = Quaternion.LookRotation(newFwd, newUp);
 
-                Quaternion initRotate = pJoint.m_InitInverseRotate;
-                parent.rotation = newRotate * initRotate;
+                Quaternion initRotate = pJoint.m_InitInverseRotation;
+                //parent.rotation = newRotate * initRotate;
+                pJoint.m_Rotation = newRotate * initRotate;
             }
         }
 
