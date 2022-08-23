@@ -283,8 +283,6 @@ namespace Framework
                     }
                 }
 
-
-
                 var oldRotate = Quaternion.LookRotation(oldFwd, oldUp);
                 var oldRotateInverse = Quaternion.Inverse(oldRotate);
 
@@ -439,6 +437,24 @@ namespace Framework
             var up = -((rVec + lVec) / 2f).normalized;
 
             return (forward, up);
+        }
+
+        /// <summary>
+        /// 重置所有关节旋转
+        /// </summary>
+        public void ResetJoints()
+        {
+            ResetRotate(RootJoint);
+
+            void ResetRotate(TreeNode<Joint> jointNode)
+            {
+                jointNode.m_Data.m_Rotation = jointNode.m_Data.m_InitRotation;
+
+                foreach (TreeNode<Joint> child in jointNode.m_Childs)
+                {
+                    ResetRotate(child);
+                }
+            }
         }
     }
 }

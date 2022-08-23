@@ -38,26 +38,24 @@ public class JointPosSampler : MonoBehaviour
     // Update is called once per frame
     void Update()
     {
+        SkeletonJointData.JointInput[] jointInputs =
+            new SkeletonJointData.JointInput[m_driver.m_Bones.Length];
 
-        Dictionary<HumanBodyBones, SkeletonJointData.JointInput> dict
-            = new Dictionary<HumanBodyBones, SkeletonJointData.JointInput>();
-
-        foreach (var bone in m_driver.m_Bones)
+        for (int i = 0; i < m_driver.m_Bones.Length; i++)
         {
+            var bone = m_driver.m_Bones[i];
             var pos = m_animator.GetBoneTransform(bone).position;
 
             pos += m_rootOffset;
-            
 
             SkeletonJointData.JointInput input = new SkeletonJointData.JointInput();
             input.m_BoneType = bone;
             input.m_Pos = pos;
 
-
-            dict.Add(bone, input);
+            jointInputs[i] = input;
         }
 
-        m_driver.Frame = dict;
+        m_driver.ApplyFrame(jointInputs);
     }
 
 }

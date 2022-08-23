@@ -44,7 +44,7 @@ namespace Framework
         /// </summary>
         private bool m_isInvaildAvatar;
 
-        public DriveMode m_DriveMode;
+        public DriveMode m_DriveMode = DriveMode.Immediately;
 
         [SerializeField]
         private float m_angularVelocity;
@@ -66,12 +66,6 @@ namespace Framework
         public SkeletonJointData m_JointsData;
 
 
-        public Dictionary<HumanBodyBones, SkeletonJointData.JointInput> Frame
-        {
-            private get;
-            set;
-        }
-
         void Start()
         {
             m_animator = GetComponent<Animator>();
@@ -87,18 +81,24 @@ namespace Framework
             m_JointsData.InitJoints(m_animator, m_Bones);
         }
 
-        void Update()
+        private void OnEnable()
         {
-            if (m_isInvaildAvatar)
+            if (m_JointsData != null)
+            {
+                m_JointsData.ResetJoints();
+                TryDriveJoints();
+            }
+        }
+
+        public void ApplyFrame(SkeletonJointData.JointInput[] frame)
+        {
+            if (m_isInvaildAvatar || frame == null)
             {
                 return;
             }
 
-            if (Frame == null) return;
-
-            m_JointsData.CalcJoints(new List<SkeletonJointData.JointInput>(Frame.Values).ToArray());
+            m_JointsData.CalcJoints(frame);
             TryDriveJoints();
-
 
             if (m_isDebug)
             {
